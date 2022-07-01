@@ -41,7 +41,7 @@ public class TrueTime {
         return SNTP_CLIENT.wasInitialized() || DISK_CACHE_CLIENT.isTrueTimeCachedFromAPreviousBoot();
     }
 
-    public TrueTime build() {
+    public static TrueTime build() {
         return INSTANCE;
     }
 

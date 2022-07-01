@@ -9,15 +9,16 @@ import io.reactivex.FlowableEmitter;
 import io.reactivex.FlowableOnSubscribe;
 import io.reactivex.FlowableTransformer;
 import io.reactivex.Single;
+import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.annotations.NonNull;
 import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
 import io.reactivex.functions.Predicate;
+import io.reactivex.observers.DisposableSingleObserver;
 import io.reactivex.schedulers.Schedulers;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -26,7 +27,6 @@ import org.reactivestreams.Publisher;
 
 import com.android.truetime.CacheInterface;
 import com.android.truetime.SntpClient;
-import com.android.truetime.TrueLog;
 import com.android.truetime.TrueTime;
 
 public class TrueTimeRx extends TrueTime {
@@ -36,10 +36,30 @@ public class TrueTimeRx extends TrueTime {
 
     private int _retryCount = 50;
 
-    public TrueTimeRx build() {
+    public static TrueTimeRx build() {
         return RX_INSTANCE;
     }
+    public static void initRxTrueTime(Context context) {
+        DisposableSingleObserver<Date> disposable = TrueTimeRx.build()
+                .withConnectionTimeout(31_428)
+                .withRetryCount(100)
+                .withSharedPreferencesCache(context)
+                .withLoggingEnabled(true)
+                .initializeRx("time.google.com")
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribeWith(new DisposableSingleObserver<Date>() {
+                    @Override
+                    public void onSuccess(Date date) {
+                        Log.d(TAG, "Success initialized TrueTime :" + date.toString());
+                    }
 
+                    @Override
+                    public void onError(Throwable e) {
+                        Log.e(TAG, "something went wrong when trying to initializeRx TrueTime", e);
+                    }
+                });
+    }
     public TrueTimeRx withSharedPreferencesCache(Context context) {
         super.withSharedPreferencesCache(context);
         return this;
@@ -89,11 +109,12 @@ public class TrueTimeRx extends TrueTime {
      * See {@link #initializeNtp(String)} for details on working
      *
      * @return accurate NTP Date
+     * @param s
      */
-    public Single<Date> initializeRx() {
+    public Single<Date> initializeRx(String s) {
         return isInitialized()
                 ? Single.just(now())
-                : initializeNtp("time.google.com").map(new Function<long[], Date>() {
+                : initializeNtp(s).map(new Function<long[], Date>() {
             @Override
             public Date apply(long[] longs) throws Exception {
                 return now();
